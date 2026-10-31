@@ -11,11 +11,20 @@ OMV NAS 系统盘的**可启动镜像**分发包 —— 含系统镜像、配套
 
 ## 一、怎么下载
 
-镜像本体不放在 git 仓库里，而是放在 **[Releases](../../releases)** 的附件中，分成 8 个分卷：
+镜像本体不放在 git 仓库里，而是放在 **[Releases → v1](https://github.com/1314ysys/omv_image_user_version/releases/tag/v1)** 的附件中，分成 8 个分卷（每卷 505.7 MB，合计 3.95 GiB）：
 
-```
-omv-nas.img.zst.part01 … omv-nas.img.zst.part08     每卷约 506 MB，合计 3.95 GiB
-```
+| 文件 | 大小 | 直链 |
+|---|---|---|
+| `omv-nas.img.zst.part01` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part01) |
+| `omv-nas.img.zst.part02` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part02) |
+| `omv-nas.img.zst.part03` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part03) |
+| `omv-nas.img.zst.part04` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part04) |
+| `omv-nas.img.zst.part05` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part05) |
+| `omv-nas.img.zst.part06` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part06) |
+| `omv-nas.img.zst.part07` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part07) |
+| `omv-nas.img.zst.part08` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part08) |
+
+实测单线程直连下载约 **7.8 MB/s**（走 GitHub 的 `release-assets.githubusercontent.com` CDN），全部 8 卷约 8～10 分钟。
 
 > **为什么不直接放进仓库？**
 > GitHub 对 git 仓库里的单个文件有 **100 MB 硬限制**（超过直接拒绝推送），LFS 免费额度只有 1 GB 存储，

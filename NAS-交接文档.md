@@ -531,3 +531,71 @@ ACR **个人版对单个上传会话有累计流量限速**，实测同一会话
 | 上传报 `BLOB_TYPE_INVALID` / 连接被断 | **阿里云会校验 blob 内容**：拿随机字节做测试会被判非法层（`403`）；`requests` 遇到这种响应常表现为 `SSLEOFError` 而不是 403 | 测试必须用合法 gzip 数据（`\x1f\x8b` 开头） |
 | 上传速度从 4 MB/s 一路掉到 0.04 MB/s | **两个原因叠加**：① 单会话累计限速（见 §15.3）；② 我第一版把 tarfile 的 10 KB 写块直接当 PATCH 体发，4 GB 变成 40 万次微请求 | 上传前缓冲成 4 MB 整块；再拆多会话并行 |
 | 想用 podman 推（本机已装 5.6.0） | podman machine 的 vhdx 在 C 盘，C 只剩 7.1 GB，构建层 + 推送缓存要 ~8 GB，会把系统盘撑爆 | 放弃 podman，改用纯 Python 直连 Registry v2 API，**不落任何本地临时文件**，流式读源文件直接上传 |
+
+---
+
+## 16. GitHub 分发（2026-10-31）
+
+> 同一份分发包另外发布到 GitHub，仓库公开，镜像本体走 Release 附件。
+
+### 16.1 地址
+
+| 项 | 值 |
+|---|---|
+| 仓库 | https://github.com/1314ysys/omv_image_user_version （**Public**） |
+| Release | https://github.com/1314ysys/omv_image_user_version/releases/tag/v1 |
+| 账号 | `1314ysys`（git 邮箱 1240855768@qq.com，gh CLI 已登录，scopes: repo） |
+| 仓库内容 | README / NAS-交接文档.md / 使用说明.txt / 分卷合并说明.txt / SHA256SUMS.txt / tools/zstd.exe / 解压稀疏.py（合计约 2 MB） |
+| 附件 | `omv-nas.img.zst.part01…08`，各 505.7 MB，合计 3.95 GiB |
+
+### 16.2 关于「能不能分卷放进 git 仓库」
+
+结论：**不建议，正确做法是放 Release 附件**。
+
+| 方案 | 可行性 | 问题 |
+|---|---|---|
+| 整个 3.95 GB 直接 commit | ❌ | GitHub 对 git 单文件 **100 MB 硬限制**，超过直接拒绝推送 |
+| 切 <100 MB 分片进仓库 | ⚠️ 技术上能 | 要 43 片；仓库膨胀到 ~4 GB，远超 GitHub 建议的 1 GB，clone 极慢，且逼近 5 GB 上限，一旦历史里留了大文件就永久拖累仓库 |
+| Git LFS | ❌ | 免费额度只有 **1 GB 存储 / 1 GB 流量**，装不下 3.95 GB（需买 data pack） |
+| **Release 附件** | ✅ | 单附件上限 **2 GiB**，专门用来发大文件；不受 git 历史膨胀影响，还能单独重传、看下载计数 |
+| 阿里云 ACR 镜像 | ✅ | 已在用（见 §15），单会话限速，需拆多会话并行 |
+
+所以最终采用：**仓库只放文档和工具（2 MB），3.95 GB 拆 8 卷放 Release**。8 卷每卷 505.7 MB，既在 2 GiB 限制内，又与 ACR 镜像里的分卷**完全同一切法**（同一偏移、同一字节），两条分发渠道的校验值可以互相印证。
+
+### 16.3 上传方式与实测
+
+用 `http.client` 直连 `uploads.github.com`，显式 `Content-Length` 流式 POST（不走 chunked，不落本地临时文件 —— D 盘只剩 3.2 GB，装不下 3.95 GB 的副本）。
+
+| 指标 | 数值 |
+|---|---|
+| 单卷耗时 | 56～75 秒（505.7 MB） |
+| 单线程上传速率 | **6.8～9.0 MB/s**（峰值 11 MB/s） |
+| 8 卷总耗时 | 约 **8.5 分钟** |
+| 下载速率（单线程直连） | 约 **7.8 MB/s**，落在 `release-assets.githubusercontent.com` |
+
+对比 ACR（§15.3）：GitHub 单连接就稳定 7～9 MB/s，ACR 单会话 1.2 MB/s 且越传越慢。**同一份 3.95 GB，GitHub 用 8.5 分钟，ACR 用 14 分钟（还是靠 4 路并行），单会话直传更是要数小时。**
+
+### 16.4 校验结果
+
+GitHub 会为每个附件计算 SHA256 并在 API 的 `digest` 字段返回，直接与本地 `SHA256SUMS.txt` 比对，8 卷**全部一致**（无需下载回来验证）：
+
+`
+part01 c38c09300b5c57fb…   part05 561fc3cc9eb4d2d3…
+part02 e7a146e26c70c57b…   part06 81872716a7507d99…
+part03 dcd5596322fcdc47…   part07 b6fc1e60ae1245ec…
+part04 4bc6aac60d7f9016…   part08 f8502feff077da91…
+合并后 2a799d76d8dcb57a38d8783856d39df92bffb625fcc6dd5edd27905a8133a1b6
+`
+
+另外做了 Range 限长下载测试：`HTTP 206`，取回的前 1 MB 与本地文件逐字节一致。
+
+### 16.5 复用手法（以后换版本）
+
+```
+# 1. 改版本号后重算分卷校验
+python E:\Deepseek_Harness\worknet\gh_upload_parts.py
+
+# 2. 脚本自带幂等：已存在且大小一致的附件自动跳过，失败自动删残片重传（最多 5 次）
+```
+
+脚本位置：`E:\Deepseek_Harness\worknet\gh_upload_parts.py`；仓库内容在 `E:\Deepseek_Harness\worknet\gh-omv\`。
