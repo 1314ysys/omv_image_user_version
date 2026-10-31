@@ -599,3 +599,106 @@ python E:\Deepseek_Harness\worknet\gh_upload_parts.py
 ```
 
 脚本位置：`E:\Deepseek_Harness\worknet\gh_upload_parts.py`；仓库内容在 `E:\Deepseek_Harness\worknet\gh-omv\`。
+
+---
+
+## 17. v2 净化版重打包（2026-10-31）
+
+### 17.1 为什么要出 v2
+
+v1（2026-10-31 早先上传的版本）在"账号净化"上只做了**登录层面**的删除：把该用户从
+`/etc/passwd`、`/etc/shadow`、`/etc/group`、`/etc/gshadow` 里删掉了，账号已无法登录。
+但对 v1 镜像做整盘字符串取证后发现，**残留比预期的多**：
+
+| 残留位置 | 内容 | 危害 |
+|---|---|---|
+| `/etc/passwd-` `/etc/group-` `/etc/gshadow-` `/etc/subuid-` `/etc/subgid-` | 删除账号时 passwd/group 自动留的备份文件，仍含该用户名、UID、家目录、sudo 组关系 | 用户名/UID/权限关系可被还原 |
+| `/etc/shadow-` | 同上，**含该账号的 yescrypt 口令哈希** | 最敏感：可离线爆破 |
+| `/etc/openmediavault/config.xml` | 3 段没有被清掉的 `<privilege>` 块（引用了已删用户） | OMV 面板里会露出该用户名 |
+| `/var/lib/samba/private/passdb.tdb`、`secrets.tdb` | Samba 账号库里的同名条目 | 同名 SMB 账号线索 |
+| `/var/log/wtmp`、`wtmp.db`、`lastlog`、`btmp` | 该用户的登录历史（时间、来源 IP、tty） | 行为痕迹 |
+| `/var/log/journal/*` | systemd 日志里的登录/提权记录 | 行为痕迹 |
+| swap 分区（908 MB，其中 444 MB 有数据） | 被换出的进程内存页 | 可能含口令/会话 |
+| 文件系统空闲块 | 上述所有文件被删后的旧数据块 | 整盘 grep 仍能挖到 |
+
+`/home` 本身在 v1 里已经是空的；数据盘（data1/2/3 + parity1）不在这块系统盘镜像里。
+
+### 17.2 v2 做了什么
+
+1. **删掉全部账号备份文件**：`/etc/passwd-`、`/etc/group-`、`/etc/gshadow-`、
+   `/etc/subuid-`、`/etc/subgid-`（`/etc/shadow-` 保留，因为它是当时 root 改密的正常备份，
+   已确认不含该用户）。
+2. **清掉 `config.xml` 里的 3 段 `<privilege>`**：删前备份到 `/root/config.xml.bak`，
+   删后用 `ElementTree` 重新解析验证 XML 合法，再确认全文件命中数 = 0。
+3. **重置 Samba 账号库**：停 `smbd/nmbd/winbind` 后删 `passdb.tdb`、`secrets.tdb`，
+   再启动，`pdbedit -L` 为空。
+4. **清登录与系统日志**：删 `wtmp`、`wtmpdb`、`btmp`、`lastlog`、`faillog`，
+   停 `systemd-journald` 后清空 `/var/log/journal/*` 再启动。
+5. **swap 整块清零并重建**：`swapoff -a` → `dd if=/dev/zero of=/dev/sda3`（952 MB，
+   3 秒，313 MB/s）→ `mkswap -U c5845499-a75d-435e-9d42-7f3366fd983e /dev/sda3`。
+   **UUID 保持不变**，所以 `/etc/fstab` 里的 `UUID=` 写法仍然有效。
+6. **两轮空闲空间填零**：`dd if=/dev/zero of=/zero.fill bs=64M conv=fsync`，
+   第一轮写 11.5 GB，删日志/swap 后第二轮再写 11.26 GB，确保被删文件的旧数据块
+   都被覆盖成零。这是**唯一安全**的清空空闲块办法（见 17.4）。
+7. **删首启标记** `/var/lib/nas/.firstboot-done`，让接收方首次开机走首启流程。
+8. **干净关机取像**：`systemctl poweroff` 让文件系统正常卸载，再在 Windows 侧
+   直接读 vmdk 的虚拟磁盘内容压缩。因此 v2 镜像是 **ext4 clean 状态**
+   （`s_state=1`，incompat 里没有 `RECOVER` 位），首次开机**不需要日志重放**。
+9. 取像前在离线侧再做一次"空闲块清零"（用正确位序），只发现 3,407 块（13.3 MiB）
+   非零，清零后复核 0。
+
+### 17.3 v2 成品信息
+
+| 项目 | 值 |
+|---|---|
+| 原始镜像 | `omv-nas.img`，25,769,803,776 字节（24.00 GiB） |
+| 原始镜像 SHA256 | `552485f92676c5346824edba4e6d5bc4105dbccf55c925cefe735973966f054e` |
+| 压缩包 | `omv-nas.img.zst`，4,090,902,949 字节（3.810 GB） |
+| 压缩包 SHA256 | `a12ea9733aa2cdc39dbb5922c2d72b6e11dba083b5ed7e0797bbdb421a9b753f` |
+| 分卷 | part01–part08，每卷 487.7 MB（尾卷略大） |
+| 分区 | p1 ext4 `/` 22.72 GiB（UUID `f9924bbe-621f-4c9c-ab11-af52124148c2`）、p2 ESP 400 MB、p3 swap 908 MiB（UUID `c5845499-a75d-435e-9d42-7f3366fd983e`） |
+
+### 17.4 验收结果
+
+- **整盘字符串扫描**：`nasuser` 全盘只剩 **2 处**，都在系统自带二进制
+  `/usr/bin/cvtsudoers` 里，是它的命令行选项名 `runasusers`（"以谁的身份运行"），
+  与账号无关，属于误报。其它位置 0 命中。
+- **账号本体**：`getent passwd`、`/etc/shadow`、`/etc/group`、`config.xml` 命中数全为 0。
+- **启动实测**：用该镜像磁盘真机启动，15 秒进 SSH；首启脚本正常跑完并打印
+  "NAS 首次启动完成"横幅；强制改密生效（改密成功）；**14 个容器全部自动启动**；
+  `openmediavault-engined`、nginx、php8.4-fpm 全部 active；WebUI 可访问。
+- **结构校验**：MBR 签名 `55aa`、p1 类型 `83` 且起始 LBA 2048、ext4 magic `53ef`、
+  UUID 与 `s_state=0100` 全部符合。
+
+### 17.5 踩到的坑（重要，务必记住）
+
+**ext4 块位图是低位优先（LSB）的**：块号 `i` 对应 `bitmap[i//8]` 的第 `i%8` 位。
+如果按高位优先（`7-(i%8)`）去读，每个 byte 内的位序被反转——由于反转是双射，
+**空闲块总数不变**，所以"空闲块数对得上超级块"这种自检**发现不了错误**，
+但读出来的具体是哪些块全错了。用错误的集合去裸写清零，就会把 1.9% 左右的
+**活数据块**（含二进制、数据库）写成零，直接把系统盘做废。
+
+判断正确位序的唯一可靠办法：拿**已被 inode 引用的数据块**回查位图，
+正确位序下它们应当 100% 落在"已分配"里。本次实测：MSB 97.7%、LSB 100.0%。
+
+本次就是在 v2 的第一轮里踩了这个坑（位序写成 MSB，清了 56,933 块，其中约 5 万块是活数据），
+导致系统盘损坏、虚拟机起不来。恢复办法：从阿里云 ACR 用**逐层 sha256 摘要**把 v1 的
+8 个分卷重新拉回来（GitHub 分卷因为并发下载被写坏过一轮，ACR 每层有摘要校验才靠得住），
+合并后整卷 SHA256 与 v1 记录 `2a799d76…3a1b6` 完全一致，再按 64 KB 粒度写回 vmdk，
+然后重做净化。教训：**别用裸块清零对付文件系统，能用 `dd` 填满空闲区就用 dd**。
+
+
+### 17.6 本地交付物布局（2026-10-31 收尾）
+
+| 位置 | 内容 | 说明 |
+|---|---|---|
+| `D:\NAS-分发\omv-nas.img` | 24 GiB 逻辑 / **13.26 GB 物理**（NTFS 稀疏） | 已按 64 KB 粒度去空洞解出，逐字节 SHA256 = `552485f9…f054e`，Rufus 直接用 |
+| `E:\omv-nas-v2.img.zst` | 3.810 GB 压缩包 | 从分发目录挪过来省 D 盘空间；SHA256 `a12ea973…753f` |
+| `D:\NAS-分发\SHA256SUMS.txt` | 整卷 + 每卷校验值 | — |
+| `D:\NAS-分发\使用说明.txt`、`分卷合并说明.txt`、`NAS-交接文档.md` | 文档 | 与云端附件内容一致 |
+| GitHub `1314ysys/omv_image_user_version` Release **v2** | 8 个分卷 + SHA256SUMS.txt + README-zh.txt / MERGE-zh.txt / HANDOVER-zh.md | 12 个附件共 3.81 GB，附件名非 ASCII 会被 GitHub 丢弃，故文档附件用 ASCII 名 |
+| 阿里云 ACR `podman_images_dev/omv_images:v2` / `:latest` | 8 个分卷层 + 1 个文档层 | manifest `sha256:ecf22b18…f706b` |
+
+注意：**GitHub Release 附件的文件名不能含中文**——API 传 `?name=使用说明.txt` 会被静默改成
+`default.txt`，`NAS-交接文档.md` 会变成 `NAS-.md`。所以三份文档以 `README-zh.txt`、
+`MERGE-zh.txt`、`HANDOVER-zh.md` 上传；仓库里的 git 文件仍是中文名（git 支持 Unicode）。

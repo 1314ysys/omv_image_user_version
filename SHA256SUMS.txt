@@ -1,10 +1,15 @@
-c38c09300b5c57fb9ffd08a45992a3a8df0b3d01d8ef5428852c9f1ad14b4002  omv-nas.img.zst.part01  (530234074 字节)
-e7a146e26c70c57bc88599e9ee58fc9e2aec0e1cd22ab89c028c4df3f8a3c3a3  omv-nas.img.zst.part02  (530234074 字节)
-dcd5596322fcdc47be38fb3e15ff40f6ee1d3b3bed93dc3779f642f8b9983f53  omv-nas.img.zst.part03  (530234074 字节)
-4bc6aac60d7f90164a4afc1f1c7cb897acdd4f1e2d4b65627cb39109bc141531  omv-nas.img.zst.part04  (530234074 字节)
-561fc3cc9eb4d2d3dedd280d74eb121f9e0c7394704f03330d9d5120c7294c63  omv-nas.img.zst.part05  (530234074 字节)
-81872716a7507d99eb7abe1b197c9f7e7d77a25eaef565fae98a3013cff60b64  omv-nas.img.zst.part06  (530234074 字节)
-b6fc1e60ae1245ec94de637fdae9c32c1319b356a93b5b68726ee70a87062158  omv-nas.img.zst.part07  (530234074 字节)
-f8502feff077da91e01d50abded4757f01ba2ee2499b724dce1886e521766b4e  omv-nas.img.zst.part08  (530234081 字节)
-
-2a799d76d8dcb57a38d8783856d39df92bffb625fcc6dd5edd27905a8133a1b6  omv-nas.img.zst (合并后, 4241872599 字节)
+# OMV NAS 系统盘镜像 v2 —— 校验和
+# 合并后 zstd 整卷: omv-nas.img.zst  4090902949 字节
+a12ea9733aa2cdc39dbb5922c2d72b6e11dba083b5ed7e0797bbdb421a9b753f  omv-nas.img.zst
+# 合并后解压出的原始镜像: omv-nas.img  25769803776 字节 (24.00 GiB)
+# 原始镜像 SHA256: 552485f92676c5346824edba4e6d5bc4105dbccf55c925cefe735973966f054e
+#
+# 分卷（按序合并）
+720626aef9aa79657a2ce6fbdff2a84a8a2b4062dd965728d51485ac5a05f64e  omv-nas.img.zst.part01
+510e0d55331a7565aa5e9e9ccf6d100ebb6140953aaf8458f21c48ee90ca4715  omv-nas.img.zst.part02
+10f4a414be4b155c4d69d4e5bf1ccf27ede37a526047d010a1a8379e20074d44  omv-nas.img.zst.part03
+fff12198177c3dc019cbb0517f2a176b639934e6bfadb7468ddcb2a9e1cbb829  omv-nas.img.zst.part04
+472edef825a42144edcd024347a1e339d4707457d6fead49931253e366cb864a  omv-nas.img.zst.part05
+9a525a2a976156357a904a1693c215d8f86e5231a7d90645b3a79eb40a1068a6  omv-nas.img.zst.part06
+58147b7ec61753a9f865e87122e53a19301aab7d00b61cdc58dea51592ca7d56  omv-nas.img.zst.part07
+19fbe7f1e46eb14315eaccf8bf9d9038e502870615fbc3b6318cbd75310cdf65  omv-nas.img.zst.part08

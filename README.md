@@ -1,118 +1,88 @@
-# omv_image_user_version
+# OMV NAS 系统盘镜像（v2 净化版）
 
-OMV NAS 系统盘的**可启动镜像**分发包 —— 含系统镜像、配套工具、交接文档。
+一块「开箱即用」的 NAS 系统盘镜像：**OpenMediaVault 8.6 + Docker + 14 个容器 + 首启自动化**，
+MBR 引导（Legacy BIOS / UEFI 含 Secure Boot 均可），目标盘 ≥ 24 GiB。
 
-- 系统：OpenMediaVault **8.6.0-1 (Synchrony)** / Debian 13 trixie / 内核 6.12
-- 内容：OMV 面板 + Docker + 14 个容器（Jellyfin、Immich、OpenList、MetaTube 等）+ 首启自动化
-- 引导：**MBR/Legacy BIOS 与 UEFI（含 Secure Boot）双引导**
-- 镜像大小：解压后 **24 GiB**（整个系统盘，含分区表）；压缩包 **3.95 GiB**
+- 当前版本：**v2**（2026-10-31）—— 账号残留彻底清零，正常关机取像（ext4 clean）
+- 下载：[Releases → v2](https://github.com/1314ysys/omv_image_user_version/releases/tag/v2)
+- 阿里云 ACR：`crpi-muahgwhixaz856an.cn-hangzhou.personal.cr.aliyuncs.com/podman_images_dev/omv_images:v2`
+- 完整说明见 [`NAS-交接文档.md`](NAS-交接文档.md)（§17 是 v2 的净化记录）
 
----
+## 一、镜像里有什么
 
-## 一、怎么下载
+| 类别 | 内容 |
+|---|---|
+| 系统 | Debian 13 (trixie)，内核 6.12，OpenMediaVault 8.6.0-1 |
+| 存储 | mergerfs 合并池 `/srv/mergerfs/pool` + SnapRAID（数据盘需自己建） |
+| 容器 | Jellyfin、Immich（server / ML / postgres / redis）、qBittorrent、Homepage、Nginx Proxy Manager、OpenList、MetaTube、frpc、opencode / qoder / freellm / workbuddy 等 14 个 |
+| 面板 | OMV WebUI `http://<IP>/`、导航页 `http://<IP>:3000/` |
+| 首启 | `nas-firstboot.sh` 自动重置 machine-id / SSH 主机密钥 / 网卡配置，强制 root 改密 |
 
-镜像本体不放在 git 仓库里，而是放在 **[Releases → v1](https://github.com/1314ysys/omv_image_user_version/releases/tag/v1)** 的附件中，分成 8 个分卷（每卷 505.7 MB，合计 3.95 GiB）：
+默认账号：`root` / `admin`，初始密码 `NasAdmin2026!`；**root 首次登录强制改密**。
 
-| 文件 | 大小 | 直链 |
-|---|---|---|
-| `omv-nas.img.zst.part01` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part01) |
-| `omv-nas.img.zst.part02` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part02) |
-| `omv-nas.img.zst.part03` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part03) |
-| `omv-nas.img.zst.part04` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part04) |
-| `omv-nas.img.zst.part05` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part05) |
-| `omv-nas.img.zst.part06` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part06) |
-| `omv-nas.img.zst.part07` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part07) |
-| `omv-nas.img.zst.part08` | 505.7 MB | [下载](https://github.com/1314ysys/omv_image_user_version/releases/download/v1/omv-nas.img.zst.part08) |
+## 二、尺寸与校验
 
-实测单线程直连下载约 **7.8 MB/s**（走 GitHub 的 `release-assets.githubusercontent.com` CDN），全部 8 卷约 8～10 分钟。
+| 项目 | 值 |
+|---|---|
+| 原始镜像 | `omv-nas.img` 25,769,803,776 字节（24.00 GiB） |
+| 原始镜像 SHA256 | `552485f92676c5346824edba4e6d5bc4105dbccf55c925cefe735973966f054e` |
+| 压缩包 | `omv-nas.img.zst` 4,090,902,949 字节（3.810 GB） |
+| 压缩包 SHA256 | `a12ea9733aa2cdc39dbb5922c2d72b6e11dba083b5ed7e0797bbdb421a9b753f` |
+| 分卷 | `part01`–`part08`，每卷 487.7 MB |
 
-> **为什么不直接放进仓库？**
-> GitHub 对 git 仓库里的单个文件有 **100 MB 硬限制**（超过直接拒绝推送），LFS 免费额度只有 1 GB 存储，
-> 都装不下 3.95 GB。切到 100 MB 以下要 40+ 个文件，仓库会膨胀到 4 GB，远超 GitHub 建议的 1 GB，
-> clone 会非常痛苦。**Releases 附件单文件上限 2 GiB**，正是用来分发这类大文件的。
-
-## 二、合并分卷
-
-**Windows（命令行，在解压出来的目录里执行）**
+## 三、怎么用
 
 ```bat
+:: 1. 合并 8 个分卷（顺序不能错，一卷不能缺）
 copy /b omv-nas.img.zst.part01+omv-nas.img.zst.part02+omv-nas.img.zst.part03+omv-nas.img.zst.part04+omv-nas.img.zst.part05+omv-nas.img.zst.part06+omv-nas.img.zst.part07+omv-nas.img.zst.part08 omv-nas.img.zst
-```
 
-**Linux / macOS**
-
-```bash
-cat omv-nas.img.zst.part* > omv-nas.img.zst
-```
-
-顺序必须 `part01 → part08`，缺一不可。
-
-## 三、校验
-
-```bat
+:: 2. 校验（应等于 a12ea973…a9b753f）
 certutil -hashfile omv-nas.img.zst SHA256
+
+:: 3. 解压成 24 GiB 镜像（空间不够 24 GB 时用 解压稀疏.py）
+tools\zstd.exe -d omv-nas.img.zst
 ```
 
-期望值：`2a799d76d8dcb57a38d8783856d39df92bffb625fcc6dd5edd27905a8133a1b6`
+然后 Rufus 写盘：「选择」`omv-nas.img` → 分区类型 **MBR** → 开始 → 弹窗选 **以 DD 镜像模式写入**。
 
-各分卷的独立校验值见 [`SHA256SUMS.txt`](SHA256SUMS.txt)。
+首次开机约 15 秒完成首启初始化，控制台会打印当前 IP、默认密码和后续三步。
 
-## 四、解压并写入 U 盘
+## 四、首启后必做的三件事
 
-1. **解压**：用 7-Zip ≥21.02 或 **360压缩**（自带 7z 内核 24.9，支持 `.zst`）右键解压 → 得到 `omv-nas.img`（24 GiB，需要 24 GB 空闲空间）
-   - 空间不足时用 [`解压稀疏.py`](解压稀疏.py)：跳过全零区块，只占约 13.6 GB，生成的文件同样可以给 Rufus 用（逻辑大小仍是 24 GiB）
-2. **写盘**：Rufus → 选择 `omv-nas.img` → 分区类型 **MBR** → 开始 → 弹窗选 **「以 DD 镜像模式写入」**
-3. 目标 U 盘 **≥32 GB**（镜像 24 GiB）
+1. 默认地址 `192.168.99.17`，去 OMV 面板改成你自己网段的固定 IP（`ip -br link` 查网卡名）
+2. 改掉默认密码（root 会强制改，admin 请自己改）
+3. 本镜像只含系统盘：存储盘需自己建文件系统 → 做 mergerfs 合并池 → 加 SnapRAID
 
-## 五、首次开机
+## 五、v2 相比 v1 改了什么
 
-镜像不含数据盘，也不含首启标记，所以第一次开机会自动完成：
+v1 只删了账号本体，v2 把残留也清了：
 
-```
-重生成 machine-id 与 SSH 主机密钥
-→ 自动识别网卡名并重写 /etc/network/interfaces（换机器网卡叫 enp3s0/eno1 也能拿到 IP）
-→ 强制修改 root 密码
-→ 把配置里写死的旧 IP 换成当前 IP
-→ 自动拉起全部 14 个容器
-```
+- `/etc/passwd-`、`/etc/group-`、`/etc/gshadow-`、`/etc/subuid-`、`/etc/subgid-`（删除账号时自动留的备份）
+- `/etc/openmediavault/config.xml` 里 3 段残留 `<privilege>`
+- Samba 账号库 `passdb.tdb` / `secrets.tdb`
+- 登录与系统日志：`wtmp` / `wtmpdb` / `btmp` / `lastlog` / `systemd journal`
+- swap 分区整块清零重建（**UUID 不变**，`/etc/fstab` 照常）
+- 文件系统空闲块两轮 dd 填零（约 22.8 GB）
+- 取像改为**正常关机**，ext4 处于 clean 状态，首启不需要日志重放
 
-控制台会显示当前 IP。默认凭据：
+整盘字符串扫描后，`nasuser` 只剩 2 处，都是系统自带 `/usr/bin/cvtsudoers` 的选项名
+`runasusers`（误报）；`getent passwd` / `/etc/shadow` / `/etc/group` / `config.xml` 命中数为 0。
+真机启动实测：15 秒进 SSH、14 个容器自动全起、OMV + nginx + php-fpm 全 active。
 
-| 入口 | 账号 | 密码 |
-|---|---|---|
-| 控制台 / SSH | `root` | `NasAdmin2026!`（首启强制修改） |
-| OMV 面板 `/` | `admin` | `NasAdmin2026!` |
-| OpenList `:5244` | `admin` | `NasAdmin2026!` |
-
-之后需自己接数据盘 → 建文件系统 → 建 mergerfs 池 → 配 SnapRAID（详见 `NAS-交接文档.md` §9.4）。
-
-## 六、仓库内容
+## 六、文件
 
 | 文件 | 说明 |
 |---|---|
-| `NAS-交接文档.md` | 完整交接文档：功能来源、存储栈、服务清单、凭据、自动化、已知坑、运维手册 |
-| `使用说明.txt` | 分发 / 写盘 / 首启的简明说明 |
-| `分卷合并说明.txt` | 分卷合并命令与校验 |
-| `SHA256SUMS.txt` | 全部分卷与合并后文件的校验值 |
-| `tools/zstd.exe` | 免安装 zstd（Windows 64 位），用于解压 `.zst` |
-| `解压稀疏.py` | 空间不足 24 GB 时的稀疏解压脚本（需 Python + `zstandard`） |
+| `NAS-交接文档.md` | 完整交接文档：组件来源、存储栈、服务清单、凭据、运维、踩过的坑、v2 净化记录 |
+| `使用说明.txt` | 写盘 / 首启 / 分发说明 |
+| `分卷合并说明.txt` | 分卷合并与校验 |
+| `SHA256SUMS.txt` | 整卷 + 每卷校验值 |
+| `解压稀疏.py` | 空间不足 24 GB 时的稀疏解压脚本（需 Python + zstandard） |
 
-## 七、同一份内容也在阿里云 ACR
+## 七、注意
 
-```bash
-docker login crpi-muahgwhixaz856an.cn-hangzhou.personal.cr.aliyuncs.com -u <用户名>
-docker pull crpi-muahgwhixaz856an.cn-hangzhou.personal.cr.aliyuncs.com/podman_images_dev/omv_images:v1
-docker create --name omvimg crpi-muahgwhixaz856an.cn-hangzhou.personal.cr.aliyuncs.com/podman_images_dev/omv_images:v1
-docker cp omvimg:/dist ./omv-dist
-docker rm omvimg
-```
-
-`./omv-dist` 里是同样的 8 个分卷，合并方式与上面一致。
-
----
-
-## 注意事项
-
-- 镜像里**只有系统盘**，数据盘（mergerfs 池 / SnapRAID 校验盘）需要目标机自己准备
-- 系统盘设备名每次开机可能变化（`sda`/`sdc`/`sde` 都出现过），但 `/etc/fstab`、mergerfs、SnapRAID 全部按 **UUID** 引用，不影响启动
-- 稀疏 img 只能在本机原地交给 Rufus；一旦复制到 U 盘 / exFAT / 网盘，空洞会实体化，文件立刻膨胀成 24 GB
+- `omv-nas.img` 是**稀疏文件**，只适合本机原地交给 Rufus；拷到 U 盘 / 网盘 / exFAT 会立刻膨胀成 24 GB
+- 分发只给 `.zst` 及分卷，不给 `.img`
+- 数据盘内容不在镜像里；镜像里的 mergerfs / SnapRAID 只有配置，盘要自己加
+- `minidlna` 与 `systemd-networkd-wait-online` 两个单元在 `systemctl --failed` 里显示失败，
+  属 OMV 用 ifupdown 管理网络的正常现象 / DLNA 无媒体目录，与功能无关

@@ -1,38 +1,53 @@
-﻿本镜像（omv_images）内容与合并说明
+本镜像（omv_images v2）内容与合并说明
 ====================================================
 
-/dist/ 目录内容
-  omv-nas.img.zst.part01 … part08   系统盘镜像压缩包的分卷，合计 3.95 GB
-  omv-nas.img.zst.sha256            合并后的 SHA256 校验值
+一、目录内容
+
+  omv-nas.img.zst.part01 … part08   系统盘镜像压缩包的分卷，合计 3.81 GB
+                                    （4,090,902,949 字节）
+  SHA256SUMS.txt                    校验值：整卷一行 + 每卷一行
   NAS-交接文档.md                    完整交接文档
-  使用说明.txt                       分发/写盘/首启说明
+  使用说明.txt                       写盘 / 首启 / 分发说明
   tools/zstd.exe                    免安装 zstd（Windows 64 位）
   解压稀疏.py                        空间不足 24 GB 时的稀疏解压脚本
 
-一、把分卷合并回完整压缩包
 
-  Windows 命令行（在解压出来的 dist 目录里）：
+二、把分卷合并回完整压缩包
+
+  Windows 命令行（在文件所在目录）：
     copy /b omv-nas.img.zst.part01+omv-nas.img.zst.part02+omv-nas.img.zst.part03+omv-nas.img.zst.part04+omv-nas.img.zst.part05+omv-nas.img.zst.part06+omv-nas.img.zst.part07+omv-nas.img.zst.part08 omv-nas.img.zst
 
   Linux / macOS：
     cat omv-nas.img.zst.part* > omv-nas.img.zst
 
-  合并顺序必须 part01 → part08，缺一不可。
+  顺序必须 part01 → part08，一卷都不能少。
 
-二、校验
+
+三、校验（务必做）
 
   certutil -hashfile omv-nas.img.zst SHA256
-  期望值：2a799d76d8dcb57a38d8783856d39df92bffb625fcc6dd5edd27905a8133a1b6
 
-三、往下怎么做
+  整卷期望值：
+    a12ea9733aa2cdc39dbb5922c2d72b6e11dba083b5ed7e0797bbdb421a9b753f
 
-  见同目录 使用说明.txt：
-    · 用 360压缩 / 7-Zip 21.02+ 解压 .zst（解压后 24 GiB，需要 24 GB 空闲）
-    · 空间不足时用 解压稀疏.py
-    · Rufus 选 .img → 分区类型 MBR → 「以 DD 镜像模式写入」
+  合并后文件应为 4,090,902,949 字节。
+  逐卷校验值见 SHA256SUMS.txt，可以先一卷一卷对，定位是哪一卷传坏了。
 
-四、为什么是分卷
 
-  阿里云 ACR 个人版对单个上传会话有累计流量限速（实测 64MB 时 5.2 MB/s，到 576MB 降到
-  1.08 MB/s）。把大文件拆成 8 个分卷，每个分卷走独立上传会话并行推送，总时间从数小时
-  压缩到十几分钟。合并后与原文件逐字节一致，校验值不变。
+四、解压与写盘
+
+  tools\zstd.exe -d omv-nas.img.zst
+    → omv-nas.img，25,769,803,776 字节（24.00 GiB）
+    → SHA256 应为 552485f92676c5346824edba4e6d5bc4105dbccf55c925cefe735973966f054e
+
+  空间不够 24 GB 时用 解压稀疏.py（写出约 13 GB 的稀疏文件，仅限本机 NTFS）。
+
+  然后 Rufus 选 omv-nas.img → 分区类型 MBR → 「以 DD 镜像模式写入」。
+
+
+五、为什么是分卷
+
+  阿里云 ACR 个人版对单个上传会话有累计流量限速（实测 64 MB 时 5.2 MB/s，
+  到 576 MB 降到 1.08 MB/s）。把大文件拆成 8 个分卷、每卷走独立上传会话并行推送，
+  总时间从数小时压缩到十几分钟。合并后与原文件逐字节一致，校验值不变。
+  GitHub Release 单附件上限 2 GiB，分卷同时也满足这个限制。
