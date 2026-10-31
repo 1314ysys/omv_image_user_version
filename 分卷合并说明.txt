@@ -1,0 +1,38 @@
+﻿本镜像（omv_images）内容与合并说明
+====================================================
+
+/dist/ 目录内容
+  omv-nas.img.zst.part01 … part08   系统盘镜像压缩包的分卷，合计 3.95 GB
+  omv-nas.img.zst.sha256            合并后的 SHA256 校验值
+  NAS-交接文档.md                    完整交接文档
+  使用说明.txt                       分发/写盘/首启说明
+  tools/zstd.exe                    免安装 zstd（Windows 64 位）
+  解压稀疏.py                        空间不足 24 GB 时的稀疏解压脚本
+
+一、把分卷合并回完整压缩包
+
+  Windows 命令行（在解压出来的 dist 目录里）：
+    copy /b omv-nas.img.zst.part01+omv-nas.img.zst.part02+omv-nas.img.zst.part03+omv-nas.img.zst.part04+omv-nas.img.zst.part05+omv-nas.img.zst.part06+omv-nas.img.zst.part07+omv-nas.img.zst.part08 omv-nas.img.zst
+
+  Linux / macOS：
+    cat omv-nas.img.zst.part* > omv-nas.img.zst
+
+  合并顺序必须 part01 → part08，缺一不可。
+
+二、校验
+
+  certutil -hashfile omv-nas.img.zst SHA256
+  期望值：2a799d76d8dcb57a38d8783856d39df92bffb625fcc6dd5edd27905a8133a1b6
+
+三、往下怎么做
+
+  见同目录 使用说明.txt：
+    · 用 360压缩 / 7-Zip 21.02+ 解压 .zst（解压后 24 GiB，需要 24 GB 空闲）
+    · 空间不足时用 解压稀疏.py
+    · Rufus 选 .img → 分区类型 MBR → 「以 DD 镜像模式写入」
+
+四、为什么是分卷
+
+  阿里云 ACR 个人版对单个上传会话有累计流量限速（实测 64MB 时 5.2 MB/s，到 576MB 降到
+  1.08 MB/s）。把大文件拆成 8 个分卷，每个分卷走独立上传会话并行推送，总时间从数小时
+  压缩到十几分钟。合并后与原文件逐字节一致，校验值不变。
